@@ -2,10 +2,18 @@ package repository
 
 import (
 	"database/sql"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 )
+
+type CurrentUser struct {
+	ID     string
+	Name   string
+	Age    int
+	Sex    string
+	Status string
+}
 
 // CreateDB - функция, создающая базу данных.
 func CreateDB() *sql.DB {
@@ -13,7 +21,7 @@ func CreateDB() *sql.DB {
 	db, _ := sql.Open("sqlite3", "database/main.db")
 	// команда, создающая таблицу users
 	statement, err := db.Prepare("CREATE TABLE IF " +
-		"NOT EXISTS users(ID TEXT, NAME, TEXT, AGE INT, SEX TEXT, STATUS TEXT)")
+		"NOT EXISTS users(ID TEXT, NAME TEXT, AGE INT, SEX TEXT, STATUS TEXT)")
 	// обработчик ошибки
 	if err != nil {
 		log.Fatal(err)
@@ -32,7 +40,7 @@ func CreateDB() *sql.DB {
 func InputID(update tgbotapi.Update, db *sql.DB) {
 	// командца инъекции данных
 	statement, err := db.Prepare("INSERT" +
-		" INTO users(ID, NAME) VALUES(?, ?)")
+		" INTO users(ID, NAME, AGE, SEX, STATUS) VALUES(?, ?, 0, '?',  'UNREGISTERED')")
 	// обработчик ошибки
 	if err != nil {
 		log.Fatal(err)
@@ -45,25 +53,18 @@ func InputID(update tgbotapi.Update, db *sql.DB) {
 	}
 }
 
-// CheckDB - функция, проверяющая на наличие в БД юзера с определенным ID
-func CheckDB(update tgbotapi.Update, db *sql.DB) bool {
-	// получаем строку, где ячейка ID равна введенному значению ID
-	statement, err := db.Query("SELECT "+
-		"ID FROM users WHERE ID = ?", update.Message.From.UserName)
-	// обработчик ошибки
+// GatherInfo - функция, которая собирает данные о пользователе из бд и возвращает их
+func GatherInfo(update tgbotapi.Update, db *sql.DB) (CurrentUser, error) {
+	var user CurrentUser
+	statement, err := db.Query("SELECT"+
+		" * FROM users WHERE ID = ?", update.Message.From.UserName)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// проверка на наличие ячейки с введенным ID
 	for statement.Next() {
-		var value string
-		err := statement.Scan(&value)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if value == update.Message.From.UserName {
-			return true
+		if err = statement.Scan(&user.ID, &user.Name, &user.Age, &user.Sex, &user.Status); err != nil {
+			return user, err
 		}
 	}
-	return false
+	return user, nil
 }

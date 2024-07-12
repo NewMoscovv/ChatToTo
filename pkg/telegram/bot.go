@@ -1,17 +1,21 @@
 package telegram
 
 import (
+	"ChatToTo/pkg/repository"
+	"database/sql"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 )
 
 type Bot struct {
 	bot *tgbotapi.BotAPI
+	db  *sql.DB
 }
 
 // NewBot - функция, добавляющая в структуру Bot апи телеграма
-func NewBot(bot *tgbotapi.BotAPI) *Bot {
-	return &Bot{bot: bot}
+func NewBot(bot *tgbotapi.BotAPI, db *sql.DB) *Bot {
+	return &Bot{bot: bot, db: db}
 }
 
 // Start - функция запуска бота
@@ -40,10 +44,17 @@ func (b *Bot) initUpdatesChannel() (tgbotapi.UpdatesChannel, error) {
 // handleUpdates = обработчик событий, там все понятно
 func (b *Bot) handleUpdates(updates tgbotapi.UpdatesChannel) {
 	for update := range updates {
-		if update.Message == nil {
-			continue
+		if repository.CheckDB(update, b.db) {
+			if update.Message == nil {
+				continue
+			} else {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
+				b.bot.Send(msg)
+			}
 		} else {
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, update.Message.Text)
+			repository.InputID(update, b.db)
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("<b>%s</b>\nПривествуем, вам необходимо пройти <i>регистрацию</i>\nприступим?", update.Message.From.UserName))
+			msg.ParseMode = "HTML"
 			b.bot.Send(msg)
 		}
 	}
